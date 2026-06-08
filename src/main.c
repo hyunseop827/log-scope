@@ -23,6 +23,9 @@
 #define OPT_SPRING "--spring"
 #define OPT_NGINX "--nginx"
 
+/* 대화형 입력에서 파일 경로를 담을 버퍼 크기다. */
+#define INPUT_BUFFER_LEN 1024
+
 /*
  * CLI usage text
  *
@@ -32,6 +35,7 @@
 static void print_usage(const char *program_name)
 {
     printf("Usage:\n");
+    printf("  %s\n", program_name);
     printf("  %s %s samples/spring.log\n", program_name, CMD_SPRING);
     printf("  %s %s samples/nginx_access.log\n", program_name, CMD_NGINX);
     printf("  %s %s %s samples/spring.log %s samples/nginx_access.log\n",
@@ -39,6 +43,40 @@ static void print_usage(const char *program_name)
            CMD_COMBINED,
            OPT_SPRING,
            OPT_NGINX);
+}
+
+/* fgets로 입력받은 문자열 끝의 개행 문자를 제거한다. */
+static void trim_input_newline(char *text)
+{
+    size_t len = strlen(text);
+
+    while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r')) {
+        text[len - 1] = '\0';
+        len--;
+    }
+}
+
+/* 프롬프트를 출력하고 한 줄을 입력받는다. 입력 실패나 빈 값이면 실패로 본다. */
+static int read_prompt_line(const char *prompt, char *buffer, size_t buffer_size)
+{
+    printf("%s", prompt);
+    fflush(stdout);
+
+    if (fgets(buffer, buffer_size, stdin) == NULL) {
+        return 0;
+    }
+
+    trim_input_newline(buffer);
+    return buffer[0] != '\0';
+}
+
+/* 인자 없이 실행했을 때 보여줄 메뉴다. */
+static void print_interactive_menu(void)
+{
+    printf("LogScope\n\n");
+    printf("1. Spring log only\n");
+    printf("2. Nginx access log only\n");
+    printf("3. Spring log + Nginx access log\n\n");
 }
 
 /* spring 명령어: Spring log 파일을 분석하고 결과를 출력한다. */
@@ -127,18 +165,72 @@ static int run_combined_command(const char *spring_log_path, const char *nginx_a
     return 0;
 }
 
+static int run_combined_command(const char *spring_log_path, const char *nginx_access_log_path);
+
+/*
+ * 인자 없이 실행했을 때의 대화형 모드다.
+ * 사용자가 1/2/3 중 하나를 고르고, 필요한 로그 파일 경로를 직접 입력한다.
+ */
+static int run_interactive_command(void)
+{
+    char choice[16];
+    char spring_log_path[INPUT_BUFFER_LEN];
+    char nginx_access_log_path[INPUT_BUFFER_LEN];
+
+    print_interactive_menu();
+
+    if (!read_prompt_line("Select mode (1-3): ", choice, sizeof(choice))) {
+        fprintf(stderr, "No mode selected.\n");
+        return 1;
+    }
+
+    if (strcmp(choice, "1") == 0) {
+        if (!read_prompt_line("Path to Spring log: ", spring_log_path, sizeof(spring_log_path))) {
+            fprintf(stderr, "Spring log path is required.\n");
+            return 1;
+        }
+
+        return run_spring_command(spring_log_path);
+    }
+
+    if (strcmp(choice, "2") == 0) {
+        if (!read_prompt_line("Path to Nginx access log: ", nginx_access_log_path, sizeof(nginx_access_log_path))) {
+            fprintf(stderr, "Nginx access log path is required.\n");
+            return 1;
+        }
+
+        return run_nginx_command(nginx_access_log_path);
+    }
+
+    if (strcmp(choice, "3") == 0) {
+        if (!read_prompt_line("Path to Spring log: ", spring_log_path, sizeof(spring_log_path))) {
+            fprintf(stderr, "Spring log path is required.\n");
+            return 1;
+        }
+        if (!read_prompt_line("Path to Nginx access log: ", nginx_access_log_path, sizeof(nginx_access_log_path))) {
+            fprintf(stderr, "Nginx access log path is required.\n");
+            return 1;
+        }
+
+        return run_combined_command(spring_log_path, nginx_access_log_path);
+    }
+
+    fprintf(stderr, "Invalid mode: %s\n", choice);
+    return 1;
+}
+
 /*
  * 프로그램 진입점이다.
  * argv[1]에 들어온 명령어 이름을 보고 spring/nginx/combined 중 하나로 분기한다.
+ * 인자가 없으면 1/2/3을 고르는 대화형 모드로 들어간다.
  */
 int main(int argc, char **argv)
 {
     const char *spring_log_path;
     const char *nginx_access_log_path;
 
-    if (argc < 2) {
-        print_usage(argv[0]);
-        return 1;
+    if (argc == 1) {
+        return run_interactive_command();
     }
 
     if (strcmp(argv[1], CMD_SPRING) == 0) {

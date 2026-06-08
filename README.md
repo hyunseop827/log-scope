@@ -8,7 +8,7 @@ The v0.1 scope is intentionally small:
 - analyze Nginx access logs
 - compare both logs by `method + path + status`
 
-## Requirment
+## Requirements
 - CMake 3.16+
 - C11 compiler
   - macOS: clang
@@ -25,6 +25,14 @@ cmake --build build
 ```
 
 ## Usage
+
+Interactive mode:
+
+```bash
+./build/logscope
+```
+
+Command-line mode:
 
 ```bash
 ./build/logscope spring samples/spring.log
