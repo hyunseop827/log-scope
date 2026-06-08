@@ -1,0 +1,4 @@
+2026-06-08T20:30:11 WARN ... GlobalExceptionHandler : event=BUSINESS_ERROR code=BREAD_002 status=409 method=POST path=/api/orders message="Bread sold out"
+2026-06-08T20:31:02 WARN ... GlobalExceptionHandler : event=AUTH_ERROR code=AUTH_002 status=401 method=GET path=/api/users/me message="Expired token"
+2026-06-08T20:31:45 ERROR ... GlobalExceptionHandler : event=EXTERNAL_API_ERROR code=PAY_001 status=500 method=POST path=/api/payments/confirm message="Payment failed"
+this line is intentionally malformed
