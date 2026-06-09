@@ -44,13 +44,13 @@ static int make_path_key(char *dest, size_t dest_size, const char *method, const
     return snprintf(dest, dest_size, "%s\t%s", method, path) > 0;
 }
 
-/* combined에서 비교할 method + path + status key를 만든다. */
+/* match에서 비교할 method + path + status key를 만든다. */
 static int make_route_key(char *dest, size_t dest_size, const char *method, const char *path, int status)
 {
     return snprintf(dest, dest_size, "%s\t%s\t%d", method, path, status) > 0;
 }
 
-/* Spring ErrorCode까지 포함한 key다. combined 비교에서 사용한다. */
+/* Spring ErrorCode까지 포함한 key다. match 비교에서 사용한다. */
 static int make_route_code_key(
     char *dest,
     size_t dest_size,
@@ -157,7 +157,7 @@ static int make_missing_fields_text(char *dest, size_t dest_size, const SpringLo
     return dest[0] != '\0';
 }
 
-/* combined에서 비교 불가능한 Spring 로그를 별도 섹션에 보여주기 위한 key다. */
+/* match에서 비교 불가능한 Spring 로그를 별도 섹션에 보여주기 위한 key다. */
 static int make_missing_match_key(char *dest, size_t dest_size, const SpringLogEntry *entry)
 {
     char missing_fields[128];
@@ -257,7 +257,7 @@ int counter_add(Counter *counter, const char *key)
     return 1;
 }
 
-/* combined 출력에서 Nginx route와 같은 Spring route가 있는지 찾을 때 사용한다. */
+/* match 출력에서 Nginx route와 같은 Spring route가 있는지 찾을 때 사용한다. */
 int counter_get_count(const Counter *counter, const char *key)
 {
     size_t i;

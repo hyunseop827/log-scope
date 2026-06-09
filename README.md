@@ -30,19 +30,11 @@ brew install cmake
 
 ## Usage
 
-Interactive mode:
-
-```bash
-./build/logscope
-```
-
-Command-line mode:
-
 ```bash
 ./build/logscope spring samples/spring.log
 ./build/logscope spring samples/spring.log --all-fields
 ./build/logscope nginx samples/nginx.log
-./build/logscope combined --spring samples/spring.log --nginx samples/nginx.log
+./build/logscope match --spring samples/spring.log --nginx samples/nginx.log
 ```
 
 ## Output
@@ -99,10 +91,10 @@ GET    /api/users/me                    401     5
 POST   /api/orders                      409     4
 ```
 
-Combined mode maps Nginx error responses to Spring ErrorCode logs.
+Match mode maps Nginx error responses to Spring ErrorCode logs.
 
 ```text
-Combined Error Mapping
+Match Error Mapping
 
 Match Key: method + path + status
 
@@ -146,4 +138,4 @@ Nginx access logs use the default combined log request format:
 
 ## Notes
 
-Combined mode is not request-level tracing. It compares aggregate counts by `method + path + status`.
+Match mode is not request-level tracing. It compares aggregate counts by `method + path + status`.

@@ -330,10 +330,10 @@ static int print_spring_only_codes(const SpringLogSummary *spring_summary, const
 }
 
 /*
- * combined summary에서 Nginx 에러 응답과 Spring ErrorCode를 한 줄 단위로 매핑한다.
+ * match summary에서 Nginx 에러 응답과 Spring ErrorCode를 한 줄 단위로 매핑한다.
  * requestId가 없기 때문에 정확한 요청 1건 매칭이 아니라 method/path/status 기준 집계 비교다.
  */
-static void print_combined_error_mapping(const SpringLogSummary *spring_summary, const NginxAccessLogSummary *nginx_access_summary)
+static void print_match_error_mapping(const SpringLogSummary *spring_summary, const NginxAccessLogSummary *nginx_access_summary)
 {
     size_t i;
     int printed = 0;
@@ -472,15 +472,15 @@ void print_nginx_access_log_summary(NginxAccessLogSummary *summary)
 }
 
 /* Spring summary와 Nginx summary를 method/path/status 기준으로 비교해서 출력한다. */
-void print_combined_log_summary(SpringLogSummary *spring_summary, NginxAccessLogSummary *nginx_access_summary)
+void print_match_log_summary(SpringLogSummary *spring_summary, NginxAccessLogSummary *nginx_access_summary)
 {
     counter_sort(&spring_summary->route_codes);
     counter_sort(&spring_summary->missing_match_fields);
     counter_sort(&nginx_access_summary->error_routes);
 
-    printf("Combined Error Mapping\n\n");
+    printf("Match Error Mapping\n\n");
     printf("Match Key: method + path + status\n\n");
-    print_combined_error_mapping(spring_summary, nginx_access_summary);
+    print_match_error_mapping(spring_summary, nginx_access_summary);
     print_missing_match_fields(&spring_summary->missing_match_fields);
 
     printf("\nConclusion:\n");
