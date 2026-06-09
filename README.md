@@ -44,17 +44,20 @@ It focuses on `level`, `method`, `path`, `status`, `code`, and `message`.
 If one of those fields is not present in the log line, LogScope prints `-`.
 
 ```text
-Spring Error Report
-
+==================================================
+[Spring Error Report]
+--------------------------------------------------
 Total Spring Error Logs: 39
 ERROR Logs: 10
 WARN Logs: 29
 
-ERROR Spring API Errors:
+[ERROR Spring API Errors]
+--------------------------------------------------
 method path                             status  code         message                          count
 POST   /api/payments/confirm            500     PAY_001      Payment failed                   3
 
-WARN Spring API Errors:
+[WARN Spring API Errors]
+--------------------------------------------------
 method path                             status  code         message                          count
 GET    /api/users/me                    401     AUTH_002     Expired token                    5
 POST   /api/orders                      409     BREAD_002    Bread sold out                   4
@@ -64,7 +67,8 @@ POST   /api/orders                      409     BREAD_002    Bread sold out     
 Use `--all-fields` to also show every parsed key-value field from the Spring log.
 
 ```text
-Raw Key-Value Fields:
+[Raw Key-Value Fields]
+--------------------------------------------------
 Raw Fields: all parsed key=value pairs from Spring log lines
 count   key_values
 5       event=AUTH_ERROR code=AUTH_002 status=401 method=GET path=/api/users/me message="Expired token"
@@ -74,18 +78,21 @@ count   key_values
 Nginx mode shows external 4xx/5xx responses from the default combined access log format.
 
 ```text
-Nginx Error Report
-
+==================================================
+[Nginx Error Report]
+--------------------------------------------------
 Total Requests: 45
 Total Nginx Error Responses: 38
 5xx Responses: 11
 4xx Responses: 27
 
-5xx Nginx Error Responses:
+[5xx Nginx Error Responses]
+--------------------------------------------------
 method path                             status  count
 POST   /api/payments/confirm            500     3
 
-4xx Nginx Error Responses:
+[4xx Nginx Error Responses]
+--------------------------------------------------
 method path                             status  count
 GET    /api/users/me                    401     5
 POST   /api/orders                      409     4
@@ -94,8 +101,9 @@ POST   /api/orders                      409     4
 Match mode maps Nginx error responses to Spring ErrorCode logs.
 
 ```text
-Match Error Mapping
-
+==================================================
+[Match Error Mapping]
+--------------------------------------------------
 Match Key: method + path + status
 
 method path                             status  nginx_count   spring_code       spring_count   result
@@ -103,7 +111,8 @@ POST   /api/orders                      409     4             BREAD_002         
 GET    /api/admin                       502     1             NONE              0              NGINX_ONLY
 POST   /api/internal/batch              500     0             BATCH_001         1              SPRING_ONLY
 
-Spring Logs Missing Match Fields:
+[Spring Logs Missing Match Fields]
+--------------------------------------------------
 method path                             status  code         message                          missing_fields   count
 -      /api/missing-method              400     MISS_001     Method field missing             method           1
 ```

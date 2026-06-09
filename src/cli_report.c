@@ -28,6 +28,18 @@ static int split_key(char *key, char **parts, int max_parts)
     return count;
 }
 
+static void print_section_title(const char *title)
+{
+    printf("[%s]\n", title);
+    printf("--------------------------------------------------\n");
+}
+
+static void print_report_title(const char *title)
+{
+    printf("==================================================\n");
+    print_section_title(title);
+}
+
 /* counter 안에 있는 count 값을 모두 더한다. */
 static int total_counter_count(const Counter *counter)
 {
@@ -392,7 +404,8 @@ static void print_missing_match_fields(const Counter *counter)
         return;
     }
 
-    printf("\nSpring Logs Missing Match Fields:\n");
+    printf("\n");
+    print_section_title("Spring Logs Missing Match Fields");
     printf("%-6s %-32s %-7s %-12s %-32s %-16s %s\n",
            "method",
            "path",
@@ -430,24 +443,28 @@ void print_spring_log_summary(SpringLogSummary *summary, int show_all_fields)
     counter_sort(&summary->route_codes);
     counter_sort(&summary->raw_fields);
 
-    printf("Spring Error Report\n\n");
+    print_report_title("Spring Error Report");
     printf("Total Spring Error Logs: %d\n", summary->total);
     printf("ERROR Logs: %d\n", count_api_errors_by_level(&summary->api_errors, "ERROR"));
     printf("WARN Logs: %d\n", count_api_errors_by_level(&summary->api_errors, "WARN"));
 
-    printf("\nERROR Spring API Errors:\n");
+    printf("\n");
+    print_section_title("ERROR Spring API Errors");
     print_api_error_counter_by_level(&summary->api_errors, "ERROR");
 
-    printf("\nWARN Spring API Errors:\n");
+    printf("\n");
+    print_section_title("WARN Spring API Errors");
     print_api_error_counter_by_level(&summary->api_errors, "WARN");
 
     if (count_api_errors_by_level(&summary->api_errors, "OTHER") > 0) {
-        printf("\nOTHER Spring API Errors:\n");
+        printf("\n");
+        print_section_title("OTHER Spring API Errors");
         print_api_error_counter_by_level(&summary->api_errors, "OTHER");
     }
 
     if (show_all_fields) {
-        printf("\nRaw Key-Value Fields:\n");
+        printf("\n");
+        print_section_title("Raw Key-Value Fields");
         printf("Raw Fields: all parsed key=value pairs from Spring log lines\n");
         print_raw_field_counter(&summary->raw_fields);
     }
@@ -458,16 +475,18 @@ void print_nginx_access_log_summary(NginxAccessLogSummary *summary)
 {
     counter_sort(&summary->error_routes);
 
-    printf("Nginx Error Report\n\n");
+    print_report_title("Nginx Error Report");
     printf("Total Requests: %d\n", summary->total);
     printf("Total Nginx Error Responses: %d\n", total_counter_count(&summary->error_routes));
     printf("5xx Responses: %d\n", count_routes_by_status_group(&summary->error_routes, 1));
     printf("4xx Responses: %d\n", count_routes_by_status_group(&summary->error_routes, 0));
 
-    printf("\n5xx Nginx Error Responses:\n");
+    printf("\n");
+    print_section_title("5xx Nginx Error Responses");
     print_route_counter_by_status_group(&summary->error_routes, 1);
 
-    printf("\n4xx Nginx Error Responses:\n");
+    printf("\n");
+    print_section_title("4xx Nginx Error Responses");
     print_route_counter_by_status_group(&summary->error_routes, 0);
 }
 
@@ -478,12 +497,8 @@ void print_match_log_summary(SpringLogSummary *spring_summary, NginxAccessLogSum
     counter_sort(&spring_summary->missing_match_fields);
     counter_sort(&nginx_access_summary->error_routes);
 
-    printf("Match Error Mapping\n\n");
+    print_report_title("Match Error Mapping");
     printf("Match Key: method + path + status\n\n");
     print_match_error_mapping(spring_summary, nginx_access_summary);
     print_missing_match_fields(&spring_summary->missing_match_fields);
-
-    printf("\nConclusion:\n");
-    printf("- Nginx 4xx/5xx responses were grouped with Spring ErrorCode logs by method/path/status.\n");
-    printf("- This is an aggregate comparison, not request-level correlation.\n");
 }
