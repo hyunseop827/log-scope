@@ -79,16 +79,21 @@ count   key_values
 1       code=MISS_001 status=400 path=/api/missing-method message="Method field missing"
 ```
 
-Nginx mode shows external 4xx/5xx responses.
+Nginx mode shows external 4xx/5xx responses from the default combined access log format.
 
 ```text
-Nginx Access Log Summary
+Nginx Error Report
 
 Total Requests: 45
-Total Error Responses: 38
-Default Fields: method, path, status
+Total Nginx Error Responses: 38
+5xx Responses: 11
+4xx Responses: 27
 
-Error Response Details:
+5xx Nginx Error Responses:
+method path                             status  count
+POST   /api/payments/confirm            500     3
+
+4xx Nginx Error Responses:
 method path                             status  count
 GET    /api/users/me                    401     5
 POST   /api/orders                      409     4

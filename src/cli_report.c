@@ -41,10 +41,30 @@ static int total_counter_count(const Counter *counter)
     return total;
 }
 
-/* method + path + status 형태의 에러 route 집계를 출력한다. */
-static void print_route_counter(const Counter *counter)
+static int parse_status_text(const char *status_text)
+{
+    return atoi(status_text);
+}
+
+static int is_5xx_status(const char *status_text)
+{
+    int status = parse_status_text(status_text);
+
+    return status >= 500 && status <= 599;
+}
+
+static int is_4xx_status(const char *status_text)
+{
+    int status = parse_status_text(status_text);
+
+    return status >= 400 && status <= 499;
+}
+
+/* method + path + status 형태의 에러 route 중 특정 status group만 출력한다. */
+static void print_route_counter_by_status_group(const Counter *counter, int print_5xx)
 {
     size_t i;
+    int printed = 0;
 
     if (counter->size == 0) {
         printf("(none)\n");
@@ -61,9 +81,46 @@ static void print_route_counter(const Counter *counter)
         key[sizeof(key) - 1] = '\0';
 
         if (split_key(key, parts, 3) == 3) {
+            if (print_5xx && !is_5xx_status(parts[2])) {
+                continue;
+            }
+            if (!print_5xx && !is_4xx_status(parts[2])) {
+                continue;
+            }
             printf("%-6s %-32s %-7s %d\n", parts[0], parts[1], parts[2], counter->items[i].count);
+            printed = 1;
         }
     }
+
+    if (!printed) {
+        printf("(none)\n");
+    }
+}
+
+static int count_routes_by_status_group(const Counter *counter, int count_5xx)
+{
+    int total = 0;
+    size_t i;
+
+    for (i = 0; i < counter->size; i++) {
+        char key[LS_KEY_LEN];
+        char *parts[3];
+
+        strncpy(key, counter->items[i].key, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+
+        if (split_key(key, parts, 3) != 3) {
+            continue;
+        }
+
+        if (count_5xx && is_5xx_status(parts[2])) {
+            total += counter->items[i].count;
+        } else if (!count_5xx && is_4xx_status(parts[2])) {
+            total += counter->items[i].count;
+        }
+    }
+
+    return total;
 }
 
 static int is_error_level(const char *level)
@@ -401,13 +458,17 @@ void print_nginx_access_log_summary(NginxAccessLogSummary *summary)
 {
     counter_sort(&summary->error_routes);
 
-    printf("Nginx Access Log Summary\n\n");
+    printf("Nginx Error Report\n\n");
     printf("Total Requests: %d\n", summary->total);
-    printf("Total Error Responses: %d\n", total_counter_count(&summary->error_routes));
-    printf("Default Fields: method, path, status\n");
+    printf("Total Nginx Error Responses: %d\n", total_counter_count(&summary->error_routes));
+    printf("5xx Responses: %d\n", count_routes_by_status_group(&summary->error_routes, 1));
+    printf("4xx Responses: %d\n", count_routes_by_status_group(&summary->error_routes, 0));
 
-    printf("\nError Response Details:\n");
-    print_route_counter(&summary->error_routes);
+    printf("\n5xx Nginx Error Responses:\n");
+    print_route_counter_by_status_group(&summary->error_routes, 1);
+
+    printf("\n4xx Nginx Error Responses:\n");
+    print_route_counter_by_status_group(&summary->error_routes, 0);
 }
 
 /* Spring summary와 Nginx summary를 method/path/status 기준으로 비교해서 출력한다. */
