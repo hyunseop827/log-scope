@@ -3,6 +3,7 @@
 
 /* Spring log에서 뽑아낼 문자열 필드의 최대 길이다. */
 #define LS_CODE_LEN 64
+#define LS_LEVEL_LEN 16
 #define LS_METHOD_LEN 16
 #define LS_PATH_LEN 256
 #define LS_STATUS_LEN 16
@@ -20,11 +21,13 @@ typedef struct {
 
 /* Spring 로그 한 줄을 파싱했을 때 담기는 결과 구조체다. */
 typedef struct {
+    char level[LS_LEVEL_LEN];
     char code[LS_CODE_LEN];
     char status[LS_STATUS_LEN];
     char method[LS_METHOD_LEN];
     char path[LS_PATH_LEN];
     char message[LS_MESSAGE_LEN];
+    int has_level;
     int has_code;
     int has_status;
     int has_method;

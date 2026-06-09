@@ -48,20 +48,25 @@ Command-line mode:
 ## Output
 
 Spring mode shows which API path produced which internal error.
-It always focuses on five fields: `method`, `path`, `status`, `code`, and `message`.
-If one of those fields is not present in the log line, LogScope prints `MISSING`.
+It focuses on `level`, `method`, `path`, `status`, `code`, and `message`.
+If one of those fields is not present in the log line, LogScope prints `-`.
 
 ```text
-Spring Log Summary
+Spring Error Report
 
-Total Error Logs: 39
-Default Fields: method, path, status, code, message
+Total Spring Error Logs: 39
+ERROR Logs: 10
+WARN Logs: 29
 
-API Error Details:
+ERROR Spring API Errors:
+method path                             status  code         message                          count
+POST   /api/payments/confirm            500     PAY_001      Payment failed                   3
+
+WARN Spring API Errors:
 method path                             status  code         message                          count
 GET    /api/users/me                    401     AUTH_002     Expired token                    5
 POST   /api/orders                      409     BREAD_002    Bread sold out                   4
-MISSING /api/missing-method              400     MISS_001     Method field missing             1
+-      /api/missing-method              400     MISS_001     Method field missing             1
 ```
 
 Use `--all-fields` to also show every parsed key-value field from the Spring log.
@@ -103,7 +108,7 @@ POST   /api/internal/batch              500     0             BATCH_001         
 
 Spring Logs Missing Match Fields:
 method path                             status  code         message                          missing_fields   count
-MISSING /api/missing-method              400     MISS_001     Method field missing             method           1
+-      /api/missing-method              400     MISS_001     Method field missing             method           1
 ```
 
 Status labels:
@@ -116,16 +121,16 @@ Status labels:
 ## Supported Log Formats
 
 Spring log lines are parsed as generic `key=value` fields.
-For the main summary, these five fields are used:
+For the main report, these fields are used:
 
 ```text
-method path status code message
+level method path status code message
 ```
 
 Example:
 
 ```text
-code=BREAD_002 status=409 method=POST path=/api/orders message="Bread sold out"
+WARN ... code=BREAD_002 status=409 method=POST path=/api/orders message="Bread sold out"
 ```
 
 Nginx access logs use the default combined log request format:

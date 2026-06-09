@@ -66,10 +66,56 @@ static void print_route_counter(const Counter *counter)
     }
 }
 
-/* Spring 단독 분석에서 가장 중요한 API + ErrorCode + message 조합을 출력한다. */
-static void print_api_error_counter(const Counter *counter)
+static int is_error_level(const char *level)
+{
+    return strcmp(level, "ERROR") == 0;
+}
+
+static int is_warn_level(const char *level)
+{
+    return strcmp(level, "WARN") == 0;
+}
+
+static int is_other_level(const char *level)
+{
+    return !is_error_level(level) && !is_warn_level(level);
+}
+
+static int is_target_level(const char *entry_level, const char *target_level)
+{
+    if (strcmp(target_level, "OTHER") == 0) {
+        return is_other_level(entry_level);
+    }
+
+    return strcmp(entry_level, target_level) == 0;
+}
+
+/* Spring API error 집계에서 특정 level의 count만 더한다. */
+static int count_api_errors_by_level(const Counter *counter, const char *level)
+{
+    int total = 0;
+    size_t i;
+
+    for (i = 0; i < counter->size; i++) {
+        char key[LS_KEY_LEN];
+        char *parts[6];
+
+        strncpy(key, counter->items[i].key, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+
+        if (split_key(key, parts, 6) == 6 && is_target_level(parts[0], level)) {
+            total += counter->items[i].count;
+        }
+    }
+
+    return total;
+}
+
+/* Spring 단독 분석에서 특정 level의 API + ErrorCode + message 조합을 출력한다. */
+static void print_api_error_counter_by_level(const Counter *counter, const char *level)
 {
     size_t i;
+    int printed = 0;
 
     if (counter->size == 0) {
         printf("(none)\n");
@@ -80,21 +126,26 @@ static void print_api_error_counter(const Counter *counter)
 
     for (i = 0; i < counter->size; i++) {
         char key[LS_KEY_LEN];
-        char *parts[5];
+        char *parts[6];
 
         strncpy(key, counter->items[i].key, sizeof(key) - 1);
         key[sizeof(key) - 1] = '\0';
 
-        if (split_key(key, parts, 5) == 5) {
+        if (split_key(key, parts, 6) == 6 && is_target_level(parts[0], level)) {
             printf(
                 "%-6s %-32s %-7s %-12s %-32s %d\n",
-                parts[0],
                 parts[1],
                 parts[2],
                 parts[3],
                 parts[4],
+                parts[5],
                 counter->items[i].count);
+            printed = 1;
         }
+    }
+
+    if (!printed) {
+        printf("(none)\n");
     }
 }
 
@@ -322,12 +373,21 @@ void print_spring_log_summary(SpringLogSummary *summary, int show_all_fields)
     counter_sort(&summary->route_codes);
     counter_sort(&summary->raw_fields);
 
-    printf("Spring Log Summary\n\n");
-    printf("Total Error Logs: %d\n", summary->total);
-    printf("Default Fields: method, path, status, code, message\n");
+    printf("Spring Error Report\n\n");
+    printf("Total Spring Error Logs: %d\n", summary->total);
+    printf("ERROR Logs: %d\n", count_api_errors_by_level(&summary->api_errors, "ERROR"));
+    printf("WARN Logs: %d\n", count_api_errors_by_level(&summary->api_errors, "WARN"));
 
-    printf("\nAPI Error Details:\n");
-    print_api_error_counter(&summary->api_errors);
+    printf("\nERROR Spring API Errors:\n");
+    print_api_error_counter_by_level(&summary->api_errors, "ERROR");
+
+    printf("\nWARN Spring API Errors:\n");
+    print_api_error_counter_by_level(&summary->api_errors, "WARN");
+
+    if (count_api_errors_by_level(&summary->api_errors, "OTHER") > 0) {
+        printf("\nOTHER Spring API Errors:\n");
+        print_api_error_counter_by_level(&summary->api_errors, "OTHER");
+    }
 
     if (show_all_fields) {
         printf("\nRaw Key-Value Fields:\n");

@@ -66,18 +66,19 @@ static int make_route_code_key(
 static int make_api_error_key(
     char *dest,
     size_t dest_size,
+    const char *level,
     const char *method,
     const char *path,
     const char *status,
     const char *code,
     const char *message)
 {
-    return snprintf(dest, dest_size, "%s\t%s\t%s\t%s\t%s", method, path, status, code, message) > 0;
+    return snprintf(dest, dest_size, "%s\t%s\t%s\t%s\t%s\t%s", level, method, path, status, code, message) > 0;
 }
 
 static const char *field_or_missing(const char *value, int has_value)
 {
-    return has_value ? value : "MISSING";
+    return has_value ? value : "-";
 }
 
 static int can_match_spring_to_nginx(const SpringLogEntry *entry)
@@ -321,6 +322,7 @@ static int add_spring_log_entry(SpringLogSummary *summary, const SpringLogEntry 
     char route_code_key[LS_KEY_LEN];
     char raw_fields_key[LS_KEY_LEN];
     char missing_match_key[LS_KEY_LEN];
+    const char *level = field_or_missing(entry->level, entry->has_level);
     const char *method = field_or_missing(entry->method, entry->has_method);
     const char *path = field_or_missing(entry->path, entry->has_path);
     const char *status = field_or_missing(entry->status, entry->has_status);
@@ -331,6 +333,7 @@ static int add_spring_log_entry(SpringLogSummary *summary, const SpringLogEntry 
     if (!make_api_error_key(
             api_error_key,
             sizeof(api_error_key),
+            level,
             method,
             path,
             status,
