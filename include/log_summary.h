@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 
-/* method/path/status를 합친 집계 key까지 담기 위해 넉넉하게 둔다. */
-#define LS_KEY_LEN 512
+/* method/path/status/code/message를 합친 집계 key까지 담기 위해 넉넉하게 둔다. */
+#define LS_KEY_LEN 1024
 
 /* 하나의 집계 항목이다. 예: key="500", count=3 */
 typedef struct {
@@ -23,11 +23,10 @@ typedef struct {
 typedef struct {
     int total;
     int skipped;
-    Counter events;
-    Counter codes;
-    Counter statuses;
-    Counter paths;
+    Counter api_errors;
     Counter route_codes;
+    Counter raw_fields;
+    Counter missing_match_fields;
 } SpringLogSummary;
 
 /* Nginx access log 분석 결과 전체를 담는다. */

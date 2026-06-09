@@ -4,21 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* key 하나와 count 하나로 이루어진 단순 집계를 출력한다. */
-static void print_simple_counter(const Counter *counter)
-{
-    size_t i;
-
-    if (counter->size == 0) {
-        printf("(none)\n");
-        return;
-    }
-
-    for (i = 0; i < counter->size; i++) {
-        printf("%-24s %d\n", counter->items[i].key, counter->items[i].count);
-    }
-}
-
 /*
  * log_summary.c에서는 여러 필드를 탭(\t)으로 합쳐 key 하나로 저장한다.
  * 출력할 때는 다시 탭 기준으로 잘라 method/path/status/code처럼 보여준다.
@@ -43,27 +28,17 @@ static int split_key(char *key, char **parts, int max_parts)
     return count;
 }
 
-/* method + path 형태의 집계를 보기 좋게 출력한다. */
-static void print_path_counter(const Counter *counter)
+/* counter 안에 있는 count 값을 모두 더한다. */
+static int total_counter_count(const Counter *counter)
 {
+    int total = 0;
     size_t i;
 
-    if (counter->size == 0) {
-        printf("(none)\n");
-        return;
-    }
-
     for (i = 0; i < counter->size; i++) {
-        char key[LS_KEY_LEN];
-        char *parts[2];
-
-        strncpy(key, counter->items[i].key, sizeof(key) - 1);
-        key[sizeof(key) - 1] = '\0';
-
-        if (split_key(key, parts, 2) == 2) {
-            printf("%-5s %-32s %d\n", parts[0], parts[1], counter->items[i].count);
-        }
+        total += counter->items[i].count;
     }
+
+    return total;
 }
 
 /* method + path + status 형태의 에러 route 집계를 출력한다. */
@@ -76,6 +51,8 @@ static void print_route_counter(const Counter *counter)
         return;
     }
 
+    printf("%-6s %-32s %-7s %s\n", "method", "path", "status", "count");
+
     for (i = 0; i < counter->size; i++) {
         char key[LS_KEY_LEN];
         char *parts[3];
@@ -84,49 +61,212 @@ static void print_route_counter(const Counter *counter)
         key[sizeof(key) - 1] = '\0';
 
         if (split_key(key, parts, 3) == 3) {
-            printf("%-5s %-32s %s count=%d\n", parts[0], parts[1], parts[2], counter->items[i].count);
+            printf("%-6s %-32s %-7s %d\n", parts[0], parts[1], parts[2], counter->items[i].count);
         }
     }
 }
 
+/* Spring 단독 분석에서 가장 중요한 API + ErrorCode + message 조합을 출력한다. */
+static void print_api_error_counter(const Counter *counter)
+{
+    size_t i;
+
+    if (counter->size == 0) {
+        printf("(none)\n");
+        return;
+    }
+
+    printf("%-6s %-32s %-7s %-12s %-32s %s\n", "method", "path", "status", "code", "message", "count");
+
+    for (i = 0; i < counter->size; i++) {
+        char key[LS_KEY_LEN];
+        char *parts[5];
+
+        strncpy(key, counter->items[i].key, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+
+        if (split_key(key, parts, 5) == 5) {
+            printf(
+                "%-6s %-32s %-7s %-12s %-32s %d\n",
+                parts[0],
+                parts[1],
+                parts[2],
+                parts[3],
+                parts[4],
+                counter->items[i].count);
+        }
+    }
+}
+
+/* --all-fields 옵션에서 원본 key=value 전체를 보여준다. */
+static void print_raw_field_counter(const Counter *counter)
+{
+    size_t i;
+
+    if (counter->size == 0) {
+        printf("(none)\n");
+        return;
+    }
+
+    printf("%-7s %s\n", "count", "key_values");
+
+    for (i = 0; i < counter->size; i++) {
+        printf("%-7d %s\n", counter->items[i].count, counter->items[i].key);
+    }
+}
+
+/* Spring route_code가 특정 Nginx route와 같은 method/path/status인지 확인한다. */
+static int is_same_route(char **spring_parts, char **nginx_parts)
+{
+    return strcmp(spring_parts[0], nginx_parts[0]) == 0 &&
+           strcmp(spring_parts[1], nginx_parts[1]) == 0 &&
+           strcmp(spring_parts[2], nginx_parts[2]) == 0;
+}
+
 /*
- * combined summary에서 Nginx 에러 route와 같은 Spring ErrorCode만 출력한다.
- * requestId가 없기 때문에 정확한 요청 1건 매칭이 아니라 집계 기준 비교다.
+ * Nginx 에러 1개와 같은 method/path/status를 가진 Spring ErrorCode를 출력한다.
+ * 같은 route/status에 Spring ErrorCode가 여러 개 있으면 여러 줄로 보여준다.
  */
-static void print_related_codes(const SpringLogSummary *spring_summary, const NginxAccessLogSummary *nginx_access_summary)
+static int print_matching_spring_codes(
+    const Counter *spring_route_codes,
+    char **nginx_parts,
+    int nginx_count)
+{
+    size_t i;
+    int matched = 0;
+
+    for (i = 0; i < spring_route_codes->size; i++) {
+        char key[LS_KEY_LEN];
+        char *spring_parts[4];
+
+        strncpy(key, spring_route_codes->items[i].key, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+
+        if (split_key(key, spring_parts, 4) != 4) {
+            continue;
+        }
+
+        if (!is_same_route(spring_parts, nginx_parts)) {
+            continue;
+        }
+
+        printf("%-6s %-32s %-7s %-13d %-17s %-14d MATCHED\n",
+               nginx_parts[0],
+               nginx_parts[1],
+               nginx_parts[2],
+               nginx_count,
+               spring_parts[3],
+               spring_route_codes->items[i].count);
+        matched = 1;
+    }
+
+    return matched;
+}
+
+/* Spring route_code와 같은 method/path/status를 가진 Nginx 에러 응답이 있는지 확인한다. */
+static int has_nginx_error_route(const Counter *nginx_error_routes, char **spring_parts)
+{
+    size_t i;
+
+    for (i = 0; i < nginx_error_routes->size; i++) {
+        char key[LS_KEY_LEN];
+        char *nginx_parts[3];
+
+        strncpy(key, nginx_error_routes->items[i].key, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+
+        if (split_key(key, nginx_parts, 3) != 3) {
+            continue;
+        }
+
+        if (is_same_route(spring_parts, nginx_parts)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/* Spring에는 ErrorCode 로그가 있지만 Nginx 에러 응답에는 없는 항목을 출력한다. */
+static int print_spring_only_codes(const SpringLogSummary *spring_summary, const NginxAccessLogSummary *nginx_access_summary)
 {
     size_t i;
     int printed = 0;
 
     for (i = 0; i < spring_summary->route_codes.size; i++) {
         char key[LS_KEY_LEN];
-        char route_key[LS_KEY_LEN];
-        char *parts[4];
+        char *spring_parts[4];
 
         strncpy(key, spring_summary->route_codes.items[i].key, sizeof(key) - 1);
         key[sizeof(key) - 1] = '\0';
 
-        if (split_key(key, parts, 4) != 4) {
+        if (split_key(key, spring_parts, 4) != 4) {
             continue;
         }
 
-        /* Spring route_code에서 code만 빼고 Nginx error_route와 같은 key를 만든다. */
-        if (snprintf(route_key, sizeof(route_key), "%s\t%s\t%s", parts[0], parts[1], parts[2]) <= 0) {
+        if (has_nginx_error_route(&nginx_access_summary->error_routes, spring_parts)) {
             continue;
         }
 
-        /* Nginx에서 실제로 4xx/5xx가 나온 route만 관련 ErrorCode로 보여준다. */
-        if (counter_get_count(&nginx_access_summary->error_routes, route_key) == 0) {
+        printf("%-6s %-32s %-7s %-13d %-17s %-14d SPRING_ONLY\n",
+               spring_parts[0],
+               spring_parts[1],
+               spring_parts[2],
+               0,
+               spring_parts[3],
+               spring_summary->route_codes.items[i].count);
+        printed = 1;
+    }
+
+    return printed;
+}
+
+/*
+ * combined summary에서 Nginx 에러 응답과 Spring ErrorCode를 한 줄 단위로 매핑한다.
+ * requestId가 없기 때문에 정확한 요청 1건 매칭이 아니라 method/path/status 기준 집계 비교다.
+ */
+static void print_combined_error_mapping(const SpringLogSummary *spring_summary, const NginxAccessLogSummary *nginx_access_summary)
+{
+    size_t i;
+    int printed = 0;
+
+    printf("%-6s %-32s %-7s %-13s %-17s %-14s %s\n",
+           "method",
+           "path",
+           "status",
+           "nginx_count",
+           "spring_code",
+           "spring_count",
+           "result");
+
+    for (i = 0; i < nginx_access_summary->error_routes.size; i++) {
+        char key[LS_KEY_LEN];
+        char *nginx_parts[3];
+        int nginx_count = nginx_access_summary->error_routes.items[i].count;
+
+        strncpy(key, nginx_access_summary->error_routes.items[i].key, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+
+        if (split_key(key, nginx_parts, 3) != 3) {
             continue;
         }
 
-        printf(
-            "%-5s %-32s %s %-12s count=%d\n",
-            parts[0],
-            parts[1],
-            parts[2],
-            parts[3],
-            spring_summary->route_codes.items[i].count);
+        if (print_matching_spring_codes(&spring_summary->route_codes, nginx_parts, nginx_count)) {
+            printed = 1;
+            continue;
+        }
+
+        printf("%-6s %-32s %-7s %-13d %-17s %-14d NGINX_ONLY\n",
+               nginx_parts[0],
+               nginx_parts[1],
+               nginx_parts[2],
+               nginx_count,
+               "NONE",
+               0);
+        printed = 1;
+    }
+
+    if (print_spring_only_codes(spring_summary, nginx_access_summary)) {
         printed = 1;
     }
 
@@ -135,54 +275,78 @@ static void print_related_codes(const SpringLogSummary *spring_summary, const Ng
     }
 }
 
-/* Spring log 분석 결과를 섹션별로 출력한다. */
-void print_spring_log_summary(SpringLogSummary *summary)
+/* method/path/status가 없어서 Nginx와 비교할 수 없는 Spring 로그를 출력한다. */
+static void print_missing_match_fields(const Counter *counter)
 {
-    counter_sort(&summary->events);
-    counter_sort(&summary->codes);
-    counter_sort(&summary->statuses);
-    counter_sort(&summary->paths);
+    size_t i;
+
+    if (counter->size == 0) {
+        return;
+    }
+
+    printf("\nSpring Logs Missing Match Fields:\n");
+    printf("%-6s %-32s %-7s %-12s %-32s %-16s %s\n",
+           "method",
+           "path",
+           "status",
+           "code",
+           "message",
+           "missing_fields",
+           "count");
+
+    for (i = 0; i < counter->size; i++) {
+        char key[LS_KEY_LEN];
+        char *parts[6];
+
+        strncpy(key, counter->items[i].key, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+
+        if (split_key(key, parts, 6) == 6) {
+            printf(
+                "%-6s %-32s %-7s %-12s %-32s %-16s %d\n",
+                parts[0],
+                parts[1],
+                parts[2],
+                parts[3],
+                parts[4],
+                parts[5],
+                counter->items[i].count);
+        }
+    }
+}
+
+/* Spring log 분석 결과를 섹션별로 출력한다. */
+void print_spring_log_summary(SpringLogSummary *summary, int show_all_fields)
+{
+    counter_sort(&summary->api_errors);
     counter_sort(&summary->route_codes);
+    counter_sort(&summary->raw_fields);
 
     printf("Spring Log Summary\n\n");
     printf("Total Error Logs: %d\n", summary->total);
-    if (summary->skipped > 0) {
-        printf("Skipped Lines: %d\n", summary->skipped);
+    printf("Default Fields: method, path, status, code, message\n");
+
+    printf("\nAPI Error Details:\n");
+    print_api_error_counter(&summary->api_errors);
+
+    if (show_all_fields) {
+        printf("\nRaw Key-Value Fields:\n");
+        printf("Raw Fields: all parsed key=value pairs from Spring log lines\n");
+        print_raw_field_counter(&summary->raw_fields);
     }
-
-    printf("\nBy Event:\n");
-    print_simple_counter(&summary->events);
-
-    printf("\nBy Code:\n");
-    print_simple_counter(&summary->codes);
-
-    printf("\nBy Status:\n");
-    print_simple_counter(&summary->statuses);
-
-    printf("\nBy Path:\n");
-    print_path_counter(&summary->paths);
 }
 
 /* Nginx access log 분석 결과를 섹션별로 출력한다. */
 void print_nginx_access_log_summary(NginxAccessLogSummary *summary)
 {
-    counter_sort(&summary->statuses);
-    counter_sort(&summary->paths);
     counter_sort(&summary->error_routes);
 
     printf("Nginx Access Log Summary\n\n");
     printf("Total Requests: %d\n", summary->total);
-    if (summary->skipped > 0) {
-        printf("Skipped Lines: %d\n", summary->skipped);
-    }
+    printf("Total Error Responses: %d\n", total_counter_count(&summary->error_routes));
+    printf("Default Fields: method, path, status\n");
 
-    printf("\nBy Status:\n");
-    print_simple_counter(&summary->statuses);
-
-    printf("\nBy Path:\n");
-    print_path_counter(&summary->paths);
-
-    printf("\nError Paths:\n");
+    printf("\nError Response Details:\n");
     print_route_counter(&summary->error_routes);
 }
 
@@ -190,23 +354,15 @@ void print_nginx_access_log_summary(NginxAccessLogSummary *summary)
 void print_combined_log_summary(SpringLogSummary *spring_summary, NginxAccessLogSummary *nginx_access_summary)
 {
     counter_sort(&spring_summary->route_codes);
+    counter_sort(&spring_summary->missing_match_fields);
     counter_sort(&nginx_access_summary->error_routes);
 
-    printf("Combined Summary\n\n");
-
-    printf("Nginx Error Responses:\n");
-    print_route_counter(&nginx_access_summary->error_routes);
-
-    printf("\nRelated Spring Error Codes:\n");
-    print_related_codes(spring_summary, nginx_access_summary);
+    printf("Combined Error Mapping\n\n");
+    printf("Match Key: method + path + status\n\n");
+    print_combined_error_mapping(spring_summary, nginx_access_summary);
+    print_missing_match_fields(&spring_summary->missing_match_fields);
 
     printf("\nConclusion:\n");
     printf("- Nginx 4xx/5xx responses were grouped with Spring ErrorCode logs by method/path/status.\n");
     printf("- This is an aggregate comparison, not request-level correlation.\n");
-
-    if (spring_summary->skipped > 0 || nginx_access_summary->skipped > 0) {
-        printf("\nSkipped Lines:\n");
-        printf("spring.log: %d\n", spring_summary->skipped);
-        printf("nginx_access.log: %d\n", nginx_access_summary->skipped);
-    }
 }

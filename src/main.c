@@ -22,6 +22,7 @@
  */
 #define OPT_SPRING "--spring"
 #define OPT_NGINX "--nginx"
+#define OPT_ALL_FIELDS "--all-fields"
 
 /* 대화형 입력에서 파일 경로를 담을 버퍼 크기다. */
 #define INPUT_BUFFER_LEN 1024
@@ -37,8 +38,9 @@ static void print_usage(const char *program_name)
     printf("Usage:\n");
     printf("  %s\n", program_name);
     printf("  %s %s samples/spring.log\n", program_name, CMD_SPRING);
-    printf("  %s %s samples/nginx_access.log\n", program_name, CMD_NGINX);
-    printf("  %s %s %s samples/spring.log %s samples/nginx_access.log\n",
+    printf("  %s %s samples/spring.log %s\n", program_name, CMD_SPRING, OPT_ALL_FIELDS);
+    printf("  %s %s samples/nginx.log\n", program_name, CMD_NGINX);
+    printf("  %s %s %s samples/spring.log %s samples/nginx.log\n",
            program_name,
            CMD_COMBINED,
            OPT_SPRING,
@@ -70,6 +72,18 @@ static int read_prompt_line(const char *prompt, char *buffer, size_t buffer_size
     return buffer[0] != '\0';
 }
 
+static int read_yes_no_prompt(const char *prompt)
+{
+    char answer[16];
+
+    if (!read_prompt_line(prompt, answer, sizeof(answer))) {
+        return 0;
+    }
+
+    return strcmp(answer, "y") == 0 || strcmp(answer, "Y") == 0 ||
+           strcmp(answer, "yes") == 0 || strcmp(answer, "YES") == 0;
+}
+
 /* 인자 없이 실행했을 때 보여줄 메뉴다. */
 static void print_interactive_menu(void)
 {
@@ -80,7 +94,7 @@ static void print_interactive_menu(void)
 }
 
 /* spring 명령어: Spring log 파일을 분석하고 결과를 출력한다. */
-static int run_spring_command(const char *path)
+static int run_spring_command(const char *path, int show_all_fields)
 {
     SpringLogSummary summary;
 
@@ -90,7 +104,7 @@ static int run_spring_command(const char *path)
         return 1;
     }
 
-    print_spring_log_summary(&summary);
+    print_spring_log_summary(&summary, show_all_fields);
     spring_log_summary_free(&summary);
 
     return 0;
@@ -116,7 +130,7 @@ static int run_nginx_command(const char *path)
 /*
  * combined 명령어 옵션을 읽는다.
  * argv 예시:
- *   logscope combined --spring samples/spring.log --nginx samples/nginx_access.log
+ *   logscope combined --spring samples/spring.log --nginx samples/nginx.log
  */
 static int parse_combined_args(int argc, char **argv, const char **spring_log_path, const char **nginx_access_log_path)
 {
@@ -165,8 +179,6 @@ static int run_combined_command(const char *spring_log_path, const char *nginx_a
     return 0;
 }
 
-static int run_combined_command(const char *spring_log_path, const char *nginx_access_log_path);
-
 /*
  * 인자 없이 실행했을 때의 대화형 모드다.
  * 사용자가 1/2/3 중 하나를 고르고, 필요한 로그 파일 경로를 직접 입력한다.
@@ -185,12 +197,15 @@ static int run_interactive_command(void)
     }
 
     if (strcmp(choice, "1") == 0) {
+        int show_all_fields;
+
         if (!read_prompt_line("Path to Spring log: ", spring_log_path, sizeof(spring_log_path))) {
             fprintf(stderr, "Spring log path is required.\n");
             return 1;
         }
 
-        return run_spring_command(spring_log_path);
+        show_all_fields = read_yes_no_prompt("Show all key-value fields? (y/N): ");
+        return run_spring_command(spring_log_path, show_all_fields);
     }
 
     if (strcmp(choice, "2") == 0) {
@@ -234,12 +249,20 @@ int main(int argc, char **argv)
     }
 
     if (strcmp(argv[1], CMD_SPRING) == 0) {
-        if (argc != 3) {
+        int show_all_fields = 0;
+
+        if (argc == 4) {
+            if (strcmp(argv[3], OPT_ALL_FIELDS) != 0) {
+                print_usage(argv[0]);
+                return 1;
+            }
+            show_all_fields = 1;
+        } else if (argc != 3) {
             print_usage(argv[0]);
             return 1;
         }
 
-        return run_spring_command(argv[2]);
+        return run_spring_command(argv[2], show_all_fields);
     }
 
     if (strcmp(argv[1], CMD_NGINX) == 0) {

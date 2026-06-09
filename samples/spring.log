@@ -34,5 +34,8 @@
 2026-06-08T20:52:28 ERROR ... GlobalExceptionHandler : event=SYSTEM_ERROR code=FILE_001 status=500 method=POST path=/api/files message="File upload failed"
 2026-06-08T20:53:09 WARN ... GlobalExceptionHandler : event=BUSINESS_ERROR code=REVIEW_001 status=409 method=POST path=/api/reviews message="Review already exists"
 2026-06-08T20:53:47 WARN ... GlobalExceptionHandler : event=AUTH_ERROR code=AUTH_002 status=401 method=GET path=/api/users/me message="Expired token"
+2026-06-08T20:54:40 ERROR ... GlobalExceptionHandler : event=SYSTEM_ERROR code=BATCH_001 status=500 method=POST path=/api/internal/batch message="Batch job failed"
+2026-06-08T20:55:03 WARN ... GlobalExceptionHandler : code=ORDER_001 status=400 method=POST path=/api/orders message="Invalid order request"
+2026-06-08T20:55:40 WARN ... GlobalExceptionHandler : code=MISS_001 status=400 path=/api/missing-method message="Method field missing"
 broken spring log without required key value fields
 this line is intentionally malformed
